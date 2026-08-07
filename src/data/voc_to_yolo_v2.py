@@ -12,15 +12,16 @@ LABEL_FOLDER = "data/labels"
 SEVERITY_CSV = "data/severity_scores.csv"
 CLASS_MAP = {"car": 0, "bus": 1, "bicycle": 2, "motorbike": 3, "person": 4}
 
-
-#Dark Channel build up
-
+#COMPUTES MEAN DARK CHANNEL VALUE OF AN IMAGE
+#PROXY FOR HAZE SEVERITY
 def dark_channel(image_bgr: np.ndarray, patch_size:int=PATCH_SIZE)->float:
     min_channel = np.min(image_bgr, axis=2).astype(np.float32)
     kernel = cv2.getStructuringElement(cv2.MORPH_RECT,(patch_size,patch_size))
     dark = cv2.erode(min_channel,kernel)
     return float(np.mean(dark))
 
+#PARSE VOC XML FILE, EXTRACT IMAGE SIZE AND COVERT
+#BBOXES TO YOLO FORMAT
 def parse_voc_xml(xml_path, class_map):
     tree = ET.parse(xml_path)
     root = tree.getroot()
@@ -45,13 +46,16 @@ def parse_voc_xml(xml_path, class_map):
         boxes.append((class_id, cx, cy, bw, bh))
     return img_w,img_h, boxes
 
-
+#WRITE YOLO FORMATTED BOUNDING BOXES
+# TO TXT FILE FOR ONE IMAGE
 def write_yolo_label(txt_path, boxes):
     with open(txt_path, 'w') as f:
         for class_id, cx, cy, bw, bh in boxes:
             line = f"{class_id} {cx:.6f} {cy:.6f} {bw:.6f} {bh:.6f}\n"
             f.write(line)
 
+#BASED ON HEAZY CONDITION PROVIDE 
+#SEVERITY LABEL
 def get_bin(score,p33, p66):
     if score <= p33:
         return "low"
@@ -60,6 +64,9 @@ def get_bin(score,p33, p66):
     else:
         return "high"
 
+#CALL PARSE_VOC_XML AND WRITE_YOLO_LABEL 
+#READ ALL IMAGES, COMPUTE DARK CHANNEL SCORE FOR EACH
+#RETURN RESULTS AS A LIST
 def img_process():
     folder = IMG_FOLDER
     files = sorted(os.listdir(folder))
@@ -73,6 +80,8 @@ def img_process():
             print(f"Image read progress: {i}/{len(files)}")
     return results
 
+#CONVERT ALL VOC XML ANNOTATIONS TO YOLO .TXT 
+#LABEL FILES
 def write_all_labels(class_map):
     img_folder = IMG_FOLDER
     ann_folder = ANN_FOLDER
@@ -91,8 +100,9 @@ def write_all_labels(class_map):
         if i%500 == 0:
             print(f"Label Writing Progress {i}/{len(files)}")
 
-
-def get_all_class_names(ann_folder):
+#SCAN ALL XML ANNOTATIONS AND RETURN SET OF 
+#UNIQUE CLASS LABEL
+def get_all_class_names():
     all_names = set()
     files = sorted(os.listdir(ANN_FOLDER))
 
@@ -112,9 +122,6 @@ if __name__ == "__main__":
     if missing:
         raise ValueError(f"Found class names not in CLASS_MAP:{missing}")
     write_all_labels(class_map=CLASS_MAP)
-
-"""
-
     scores = img_process()
     severities = [severity for _,severity in scores]
     p33 = np.percentile(severities, 33)
@@ -126,8 +133,6 @@ if __name__ == "__main__":
         for filename, severity in scores:
             bin_level = get_bin(severity, p33=p33, p66=p66)
             writer.writerow([filename, severity, bin_level])
-
-"""
 
 
 
